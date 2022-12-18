@@ -139,13 +139,16 @@ def project(
 @click.option('--seed',                   help='Random seed', type=int, default=303, show_default=True)
 @click.option('--save-video',             help='Save an mp4 video of optimization progress', type=bool, default=True, show_default=True)
 @click.option('--outdir',                 help='Where to save the output images', required=True, metavar='DIR')
+@click.option('--num-frames',             help='Number of interpolation frames to save', type=int, default=10)
+
 def run_projection(
     network_pkl: str,
     target_fname: str,
     outdir: str,
     save_video: bool,
     seed: int,
-    num_steps: int
+    num_steps: int,
+    num_frames: int
 ):
     """Project given image to the latent space of pretrained network pickle.
 
@@ -186,9 +189,13 @@ def run_projection(
     # Render debug output: optional video and projected image and W vector.
     os.makedirs(outdir, exist_ok=True)
     if save_video:
-        video = imageio.get_writer(f'{outdir}/proj.mp4', mode='I', fps=10, codec='libx264', bitrate='16M')
+        video = imageio.get_writer(f'{outdir}/proj_{seed}.mp4', mode='I', fps=10, codec='libx264', bitrate='16M')
         print (f'Saving optimization progress video "{outdir}/proj.mp4"')
-        for projected_w in projected_w_steps:
+                
+        num_of_frames = np.min([len(projected_w_steps), num_frames])
+        pick_fewer_indices = np.linspace(0, len(projected_w_steps) - 1, num_of_frames).astype(int)
+        
+        for projected_w in projected_w_steps[pick_fewer_indices]:
             synth_image = G.synthesis(projected_w.unsqueeze(0), noise_mode='const')
             synth_image = (synth_image + 1) * (255/2)
             synth_image = synth_image.permute(0, 2, 3, 1).clamp(0, 255).to(torch.uint8)[0].cpu().numpy()
@@ -196,13 +203,13 @@ def run_projection(
         video.close()
 
     # Save final projected frame and W vector.
-    target_pil.save(f'{outdir}/target.png')
+    target_pil.save(f'{outdir}/target_{seed}.png')
     projected_w = projected_w_steps[-1]
     synth_image = G.synthesis(projected_w.unsqueeze(0), noise_mode='const')
     synth_image = (synth_image + 1) * (255/2)
     synth_image = synth_image.permute(0, 2, 3, 1).clamp(0, 255).to(torch.uint8)[0].cpu().numpy()
-    PIL.Image.fromarray(synth_image, 'RGB').save(f'{outdir}/proj.png')
-    np.savez(f'{outdir}/projected_w.npz', w=projected_w.unsqueeze(0).cpu().numpy())
+    PIL.Image.fromarray(synth_image, 'RGB').save(f'{outdir}/proj_{seed}.png')
+    np.savez(f'{outdir}/projected_w_{seed}.npz', w=projected_w.unsqueeze(0).cpu().numpy())
 
 #----------------------------------------------------------------------------
 
