@@ -13,6 +13,8 @@ Only works on 2D images and assumes
 
 import warnings
 import torch
+from distutils.version import LooseVersion
+
 
 # pylint: disable=redefined-builtin
 # pylint: disable=arguments-differ
@@ -34,7 +36,7 @@ def grid_sample(input, grid):
 def _should_use_custom_op():
     if not enabled:
         return False
-    if any(torch.__version__.startswith(x) for x in ['1.7.', '1.8.', '1.9']):
+    if LooseVersion(torch.__version__) >= LooseVersion('1.7.0'):
         return True
     warnings.warn(f'grid_sample_gradfix not supported on PyTorch {torch.__version__}. Falling back to torch.nn.functional.grid_sample().')
     return False
@@ -61,6 +63,11 @@ class _GridSample2dForward(torch.autograd.Function):
 class _GridSample2dBackward(torch.autograd.Function):
     @staticmethod
     def forward(ctx, grad_output, input, grid):
+        # op = torch._C._jit_get_operation('aten::grid_sampler_2d_backward')[0]
+        # # TODOL EDITED    
+        # output_mask = (ctx.needs_input_grad[1], ctx.needs_input_grad[2])
+        # grad_input, grad_grid = op(grad_output, input, grid, 0, 0, False, output_mask)
+        
         op = torch._C._jit_get_operation('aten::grid_sampler_2d_backward')
         grad_input, grad_grid = op(grad_output, input, grid, 0, 0, False)
         ctx.save_for_backward(grid)
